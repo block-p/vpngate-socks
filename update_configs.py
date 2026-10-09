@@ -54,6 +54,10 @@ def fetch_and_save_configs(limit=10, selected_countries=None, excluded_countries
         if country_code in excluded_countries or country_name.lower() in ("russia", "russian federation"):
             continue
 
+        # Skip fake Cloudflare CDN / WARP IPs (e.g. 104.28.*)
+        if ip.startswith("104.28.") or ip.startswith("104.16.") or ip.startswith("172.64."):
+            continue
+
         try:
             score = int(row[2])
             speed = int(row[4])

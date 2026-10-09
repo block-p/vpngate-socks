@@ -26,16 +26,21 @@ if [ -n "$DEFAULT_GW" ]; then
     ip route add 192.168.0.0/16 via "$DEFAULT_GW" dev eth0 2>/dev/null || true
 fi
 
-# OpenVPN arguments
+# OpenVPN authentication credentials check
 EXTRA_ARGS=()
+AUTH_FILE=""
 if [ -f /etc/openvpn/auth.txt ]; then
+    AUTH_FILE="/etc/openvpn/auth.txt"
+fi
+
+if [ -n "$AUTH_FILE" ]; then
     if grep -q "^auth-user-pass" "$OVPN_FILE" 2>/dev/null; then
-        EXTRA_ARGS+=(--auth-user-pass /etc/openvpn/auth.txt)
+        EXTRA_ARGS+=(--auth-user-pass "$AUTH_FILE")
     fi
 fi
 
-# Start OpenVPN daemon
-openvpn --config "$OVPN_FILE" "${EXTRA_ARGS[@]}" --daemon
+# Start OpenVPN daemon with file logging
+openvpn --config "$OVPN_FILE" "${EXTRA_ARGS[@]}" --daemon --log /tmp/openvpn.log
 
 echo "[+] Waiting for OpenVPN tunnel (tun0) to come up..."
 timeout=30
@@ -45,7 +50,8 @@ while [ $timeout -gt 0 ] && ! ip link show tun0 > /dev/null 2>&1; do
 done
 
 if ! ip link show tun0 > /dev/null 2>&1; then
-    echo "[-] ERROR: OpenVPN failed to connect within 30s. Check logs or credentials."
+    echo "[-] ERROR: OpenVPN failed to connect within 30s. Connection details:"
+    tail -n 25 /tmp/openvpn.log 2>/dev/null || true
     exit 1
 fi
 

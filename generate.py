@@ -95,10 +95,9 @@ def is_port_in_use_by_external(port, my_container_name, docker_owners):
     if not in_use:
         return False
     
-    # Port is in use: check if it belongs to this project's own container
     owner = docker_owners.get(port)
     if owner == my_container_name:
-        return False  # Same container being updated/recreated
+        return False
     
     return True
 
@@ -115,7 +114,7 @@ def find_available_port(target_port, used_ports, my_container_name, docker_owner
 def main():
     os.makedirs(CONFIGS_DIR, exist_ok=True)
     raw_files = sorted(glob.glob(os.path.join(CONFIGS_DIR, "*.ovpn")))
-    ovpn_files = [f for f in raw_files if os.path.splitext(os.path.basename(f))[0].lower() not in EXCLUDED_COUNTRIES]
+    ovpn_files = [f for f in raw_files if os.path.isfile(f) and os.path.splitext(os.path.basename(f))[0].lower() not in EXCLUDED_COUNTRIES]
 
     if not ovpn_files:
         print(f"[-] No .ovpn files found in {CONFIGS_DIR}!")
@@ -125,7 +124,6 @@ def main():
     assigned = []
     used_ports = set()
 
-    # Pass 1: Assign fixed ports
     remaining_files = []
     for f in ovpn_files:
         base = os.path.splitext(os.path.basename(f))[0].lower()
@@ -138,7 +136,6 @@ def main():
         else:
             remaining_files.append((base, f))
 
-    # Pass 2: Assign dynamic ports for non-fixed countries starting from 1095
     dyn_port = 1095
     for base, f in remaining_files:
         service_name = f"vpn-{base}"
@@ -149,11 +146,11 @@ def main():
 
     assigned.sort(key=lambda x: x[2])
 
-    auth_mount = ""
+    global_auth = None
     if os.path.exists("./auth.txt"):
-        auth_mount = "      - ./auth.txt:/etc/openvpn/auth.txt:ro\n"
+        global_auth = "./auth.txt"
     elif os.path.exists(os.path.join(CONFIGS_DIR, "auth.txt")):
-        auth_mount = f"      - {CONFIGS_DIR}/auth.txt:/etc/openvpn/auth.txt:ro\n"
+        global_auth = os.path.join(CONFIGS_DIR, "auth.txt")
 
     compose_content = "services:\n"
     xray_outbounds = []
@@ -170,6 +167,14 @@ def main():
         tag_name = f"{flag} {c_name}-ovpn"
         service_name = f"vpn-{loc}"
 
+        # Check for dedicated <loc>.auth or fallback to global_auth
+        spec_auth = os.path.join(CONFIGS_DIR, f"{loc}.auth")
+        container_auth_mount = ""
+        if os.path.exists(spec_auth):
+            container_auth_mount = f"      - {spec_auth}:/etc/openvpn/auth.txt:ro\n"
+        elif global_auth:
+            container_auth_mount = f"      - {global_auth}:/etc/openvpn/auth.txt:ro\n"
+
         compose_content += f"""  {service_name}:
     build: .
     container_name: {service_name}
@@ -181,7 +186,7 @@ def main():
       - "{port}:1080"
     volumes:
       - {fpath}:/etc/openvpn/config.ovpn:ro
-{auth_mount}    restart: unless-stopped
+{container_auth_mount}    restart: unless-stopped
 
 """
 
