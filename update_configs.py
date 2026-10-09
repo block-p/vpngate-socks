@@ -8,9 +8,15 @@ import argparse
 
 VPNGATE_API_URL = "https://www.vpngate.net/api/iphone/"
 CONFIGS_DIR = "./configs"
+DEFAULT_EXCLUDED_COUNTRIES = {"ru"}
 
-def fetch_and_save_configs(limit=10, selected_countries=None):
+def fetch_and_save_configs(limit=10, selected_countries=None, excluded_countries=None):
     os.makedirs(CONFIGS_DIR, exist_ok=True)
+    if excluded_countries is None:
+        excluded_countries = DEFAULT_EXCLUDED_COUNTRIES
+    else:
+        excluded_countries = set(c.lower() for c in excluded_countries) | DEFAULT_EXCLUDED_COUNTRIES
+
     print(f"[+] Requesting server list from VPNGate API ({VPNGATE_API_URL})...")
     
     req = urllib.request.Request(
@@ -44,6 +50,10 @@ def fetch_and_save_configs(limit=10, selected_countries=None):
         country_name = row[5].strip()
         ip = row[1].strip()
         
+        # Skip blacklisted countries (e.g. Russia)
+        if country_code in excluded_countries or country_name.lower() in ("russia", "russian federation"):
+            continue
+
         try:
             score = int(row[2])
             speed = int(row[4])
@@ -78,7 +88,7 @@ def fetch_and_save_configs(limit=10, selected_countries=None):
     if limit and limit > 0:
         sorted_countries = sorted_countries[:limit]
 
-    print(f"[+] Selected top {len(sorted_countries)} servers:\n")
+    print(f"[+] Selected top {len(sorted_countries)} servers (excluding: {', '.join(sorted(excluded_countries)).upper()}):\n")
     print(f"{'CODE':<6} | {'COUNTRY':<20} | {'IP':<16} | {'SPEED (Mbps)':<12}")
     print("-" * 65)
 
@@ -101,9 +111,11 @@ def fetch_and_save_configs(limit=10, selected_countries=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="VPNGate Config Downloader")
     parser.add_argument("--limit", type=int, default=10, help="Number of top countries to fetch (default: 10)")
-    parser.add_argument("--countries", type=str, default="", help="Comma-separated country codes, e.g. jp,us,kr")
+    parser.add_argument("--countries", type=str, default="", help="Comma-separated country codes to include, e.g. jp,us,kr")
+    parser.add_argument("--exclude", type=str, default="ru", help="Comma-separated country codes to ignore (default: ru)")
     args = parser.parse_args()
 
     countries = [c.strip().lower() for c in args.countries.split(",") if c.strip()] if args.countries else None
-    success = fetch_and_save_configs(limit=args.limit, selected_countries=countries)
+    excluded = [c.strip().lower() for c in args.exclude.split(",") if c.strip()] if args.exclude else ["ru"]
+    success = fetch_and_save_configs(limit=args.limit, selected_countries=countries, excluded_countries=excluded)
     sys.exit(0 if success else 1)

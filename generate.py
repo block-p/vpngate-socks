@@ -63,9 +63,12 @@ def get_flag(code):
         return "".join(chr(127397 + ord(char.upper())) for char in c)
     return "🌐"
 
+EXCLUDED_COUNTRIES = {"ru"}
+
 def main():
     os.makedirs(CONFIGS_DIR, exist_ok=True)
-    ovpn_files = sorted(glob.glob(os.path.join(CONFIGS_DIR, "*.ovpn")))
+    raw_files = sorted(glob.glob(os.path.join(CONFIGS_DIR, "*.ovpn")))
+    ovpn_files = [f for f in raw_files if os.path.splitext(os.path.basename(f))[0].lower() not in EXCLUDED_COUNTRIES]
 
     if not ovpn_files:
         print(f"[-] No .ovpn files found in {CONFIGS_DIR}!")
