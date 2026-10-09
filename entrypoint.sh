@@ -28,16 +28,16 @@ fi
 
 # OpenVPN authentication credentials check
 EXTRA_ARGS=()
-AUTH_FILE=""
 if [ -f /etc/openvpn/auth.txt ]; then
-    AUTH_FILE="/etc/openvpn/auth.txt"
-fi
-
-if [ -n "$AUTH_FILE" ]; then
-    if grep -q "^auth-user-pass" "$OVPN_FILE" 2>/dev/null; then
-        EXTRA_ARGS+=(--auth-user-pass "$AUTH_FILE")
+    # If config explicitly asks for auth-user-pass or has it enabled
+    if grep -qiE '^[[:space:]]*auth-user-pass' "$OVPN_FILE" 2>/dev/null; then
+        EXTRA_ARGS+=(--auth-user-pass /etc/openvpn/auth.txt)
+        echo "[+] Auth credentials attached from auth.txt"
     fi
 fi
+
+# Backward compatibility for older ciphers (e.g. VPNBook / SoftEther AES-CBC)
+EXTRA_ARGS+=(--data-ciphers "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305:AES-256-CBC:AES-128-CBC")
 
 # Start OpenVPN daemon with file logging
 openvpn --config "$OVPN_FILE" "${EXTRA_ARGS[@]}" --daemon --log /tmp/openvpn.log
@@ -50,8 +50,10 @@ while [ $timeout -gt 0 ] && ! ip link show tun0 > /dev/null 2>&1; do
 done
 
 if ! ip link show tun0 > /dev/null 2>&1; then
-    echo "[-] ERROR: OpenVPN failed to connect within 30s. Connection details:"
-    tail -n 25 /tmp/openvpn.log 2>/dev/null || true
+    echo "[-] ERROR: OpenVPN failed to connect within 30s. Connection log:"
+    echo "------------------------------------------------------------"
+    cat /tmp/openvpn.log 2>/dev/null || echo "No log available"
+    echo "------------------------------------------------------------"
     exit 1
 fi
 
