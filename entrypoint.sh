@@ -26,17 +26,18 @@ if [ -n "$DEFAULT_GW" ]; then
     ip route add 192.168.0.0/16 via "$DEFAULT_GW" dev eth0 2>/dev/null || true
 fi
 
-# OpenVPN authentication credentials check
-EXTRA_ARGS=()
+# OpenVPN arguments
+EXTRA_ARGS=(--dev tun0)
+
+# Check for authentication credentials
 if [ -f /etc/openvpn/auth.txt ]; then
-    # If config explicitly asks for auth-user-pass or has it enabled
     if grep -qiE '^[[:space:]]*auth-user-pass' "$OVPN_FILE" 2>/dev/null; then
         EXTRA_ARGS+=(--auth-user-pass /etc/openvpn/auth.txt)
         echo "[+] Auth credentials attached from auth.txt"
     fi
 fi
 
-# Backward compatibility for older ciphers (e.g. VPNBook / SoftEther AES-CBC)
+# Backward compatibility for older ciphers
 EXTRA_ARGS+=(--data-ciphers "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305:AES-256-CBC:AES-128-CBC")
 
 # Start OpenVPN daemon with file logging
