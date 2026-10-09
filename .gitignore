@@ -1,0 +1,14 @@
+# Runtime generated files
+docker-compose.yml
+locations.txt
+xray_outbounds.json
+
+# Local configurations & secrets
+auth.txt
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store
